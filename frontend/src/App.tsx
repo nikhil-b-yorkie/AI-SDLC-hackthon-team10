@@ -30,12 +30,18 @@ export const App: React.FC = () => {
   const [isScorecardOpen, setIsScorecardOpen] = useState(false);
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
 
-  // Persistent API Settings (OpenRouter default with best free model)
+  // Persistent API Settings (OpenRouter default with best verified free model)
   const [apiSettings, setApiSettings] = useState<ApiSettings>(() => {
     const saved = localStorage.getItem('designauditor_api_settings');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Automatically migrate away from deprecated or dead models
+        if (!parsed.model || parsed.model.includes('deepseek-r1-0528') || parsed.model.includes('gemma-3') || parsed.model.includes('llama-3.3-70b-instruct:free')) {
+          parsed.model = 'nvidia/nemotron-3-ultra-550b-a55b:free';
+          localStorage.setItem('designauditor_api_settings', JSON.stringify(parsed));
+        }
+        return parsed;
       } catch {
         // ignore
       }
@@ -43,7 +49,7 @@ export const App: React.FC = () => {
     return {
       provider: 'openrouter',
       apiKey: '',
-      model: 'deepseek/deepseek-r1-0528:free',
+      model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
     };
   });
 

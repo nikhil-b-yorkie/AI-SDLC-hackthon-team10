@@ -61,6 +61,11 @@ export class AuditController {
       return;
     }
 
+    // Sanitize model to prevent deprecated or retired free slugs
+    const sanitizedModel = (model && !model.includes('deepseek-r1-0528') && !model.includes('gemma-3'))
+      ? model
+      : (process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free');
+
     const sessionId = uuidv4();
     const initialStatus: SessionStatus = {
       sessionId,
@@ -153,7 +158,7 @@ export class AuditController {
               message: msg,
             });
           },
-          { apiKey, provider: apiProvider, model }
+          { apiKey, provider: apiProvider, model: sanitizedModel }
         );
 
         // Step 4: Synthesize Improved Pure HTML/CSS Preview with metadata
@@ -168,7 +173,16 @@ export class AuditController {
           sessionId,
           this.workspaceBaseDir,
           extracted,
-          auditResult
+          auditResult,
+          { apiKey, provider: apiProvider, model: sanitizedModel },
+          (msg) => {
+            this.notifySse(sessionId, {
+              sessionId,
+              status: 'redesigning',
+              progress: 90,
+              message: msg,
+            });
+          }
         );
 
         // Completed

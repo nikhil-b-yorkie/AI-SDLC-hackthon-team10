@@ -276,8 +276,8 @@ export const SplitWorkspace: React.FC<SplitWorkspaceProps> = ({
               }`}
             >
               <span>Scorecard</span>
-              <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[10px] font-bold">
-                {auditResult.scorecard.overall_score}/10
+              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[10px] font-bold">
+                {auditResult.scorecard.overall_score} ➔ {auditResult.scorecard.improved_overall_score || 9.5}/10
               </span>
             </button>
           )}

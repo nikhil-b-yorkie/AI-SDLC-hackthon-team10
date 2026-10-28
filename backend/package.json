@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
+    "redesign": "tsx src/cli/redesign-cli.ts",
     "test": "node --test dist/**/*.test.js"
   },
   "dependencies": {

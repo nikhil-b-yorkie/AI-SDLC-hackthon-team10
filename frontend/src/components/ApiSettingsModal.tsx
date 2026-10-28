@@ -30,7 +30,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
   const handleProviderChange = (p: 'gemini' | 'openrouter') => {
     setProvider(p);
     if (p === 'openrouter' && (!model || model.includes('gemini-3') || model.includes('gemini-'))) {
-      setModel('deepseek/deepseek-r1-0528:free');
+      setModel('nvidia/nemotron-3-ultra-550b-a55b:free');
     } else if (p === 'gemini' && (!model || model.includes(':free') || model.includes('claude') || model.includes('nvidia') || model.includes('deepseek') || model.includes('/'))) {
       setModel('gemini-2.0-flash');
     }
@@ -134,18 +134,16 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               type="text"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder={provider === 'openrouter' ? 'deepseek/deepseek-r1-0528:free' : 'gemini-2.0-flash'}
+              placeholder={provider === 'openrouter' ? 'nvidia/nemotron-3-ultra-550b-a55b:free' : 'gemini-2.0-flash'}
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 focus:border-indigo-500 text-xs text-slate-100 font-mono rounded-xl outline-none"
             />
             {provider === 'openrouter' ? (
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-[10px] text-slate-500">Best free models:</span>
+                <span className="text-[10px] text-slate-500">Verified Free Models:</span>
                 {[
-                  'deepseek/deepseek-r1-0528:free',
-                  'google/gemma-3-27b-it:free',
                   'nvidia/nemotron-3-ultra-550b-a55b:free',
-                  'meta-llama/llama-3.3-70b-instruct:free',
-                  'microsoft/mai-ds-r1:free',
+                  'nvidia/nemotron-3.5-lightning:free',
+                  'google/gemma-4-31b-it:free',
                 ].map((m) => (
                   <button
                     key={m}

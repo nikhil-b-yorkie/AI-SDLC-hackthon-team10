@@ -21,11 +21,14 @@ export interface AuditFinding {
 
 export interface CategoryScore {
   score: number;
+  improved_score?: number;
   reason: string;
 }
 
 export interface AuditScorecard {
   overall_score: number;
+  improved_overall_score?: number;
+  score_gain?: number;
   usability: CategoryScore;
   visual_hierarchy: CategoryScore;
   consistency: CategoryScore;

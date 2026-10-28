@@ -22,12 +22,15 @@ export interface AuditFinding {
 }
 
 export interface CategoryScore {
-  score: number; // 0 - 10
+  score: number; // 0 - 10 (baseline score)
+  improved_score?: number; // 0 - 10 (score after redesign)
   reason: string;
 }
 
 export interface AuditScorecard {
-  overall_score: number; // 0 - 10
+  overall_score: number; // 0 - 10 (baseline score)
+  improved_overall_score?: number; // 0 - 10 (score after redesign)
+  score_gain?: number; // point increase (e.g. +3.8)
   usability: CategoryScore;
   visual_hierarchy: CategoryScore;
   consistency: CategoryScore;

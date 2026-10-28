@@ -64,6 +64,8 @@ export class AnalyzerService {
    */
   private async locateEntryHtml(repoPath: string, htmlFiles: string[]): Promise<string | null> {
     const candidates = [
+      path.join(repoPath, 'dist', 'index.html'),
+      path.join(repoPath, 'build', 'index.html'),
       path.join(repoPath, 'index.html'),
       path.join(repoPath, 'public', 'index.html'),
       path.join(repoPath, 'src', 'index.html'),
@@ -171,44 +173,74 @@ export class AnalyzerService {
     const rawTitle = pkgJson?.name ? pkgJson.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : 'Application Preview';
     const description = pkgJson?.description || 'Interactive web application extracted from repository source code.';
 
-    // Collect all JSX/TSX/Vue/JS component files
-    const jsFiles = await this.findFiles(repoPath, ['.tsx', '.jsx', '.vue', '.js']);
+    // Collect all JSX/TSX/Vue/JS component files, prioritizing entry/hero components first
+    const rawJsFiles = await this.findFiles(repoPath, ['.tsx', '.jsx', '.vue', '.js']);
+    const jsFiles = rawJsFiles.sort((a, b) => {
+      const aName = path.basename(a).toLowerCase();
+      const bName = path.basename(b).toLowerCase();
+      const getPriority = (n: string) => {
+        if (/hero|banner/i.test(n)) return 1;
+        if (/home|landing/i.test(n)) return 2;
+        if (/app|index|main/i.test(n)) return 3;
+        if (/feature|budget|dashboard/i.test(n)) return 4;
+        if (/about|footer/i.test(n)) return 9;
+        return 5;
+      };
+      return getPriority(aName) - getPriority(bName);
+    });
     
     // Extract headings, buttons, links, and paragraphs across components
     const headings: string[] = [];
     const paragraphs: string[] = [];
     const buttons: string[] = [];
     const navLinks: string[] = [];
+    const inputs: string[] = [];
     const features: { title: string; desc: string }[] = [];
     let aboutSnippet = '';
 
     for (const file of jsFiles) {
       try {
         const text = await fs.readFile(file, 'utf-8');
+        const fileName = path.basename(file).toLowerCase();
         
-        // Extract headings (h1, h2, h3)
-        const hMatches = text.matchAll(/<h[1-3][^>]*>([^<{]+)<\/h[1-3]>/gi);
+        // Extract headings (prioritizing h1 and h2 from hero/home)
+        const hMatches = text.matchAll(/<h([1-3])[^>]*>([\s\S]*?)<\/h\1>/gi);
         for (const m of hMatches) {
-          const val = m[1].trim();
-          if (val && val.length > 2 && !headings.includes(val)) {
+          let val = m[2].replace(/\{[\s\S]*?\}/g, '').replace(/<[^>]+>/g, '').trim();
+          if (val && val.length > 2 && !val.includes('{') && !headings.includes(val)) {
+            // Don't let "About Me" override the main hero heading
+            if (/about/i.test(val) && headings.length > 0) continue;
             headings.push(val);
           }
         }
 
-        // Extract paragraphs
-        const pMatches = text.matchAll(/<p[^>]*>([^<{]+)<\/p>/gi);
+        // Extract paragraphs (ignore copyright and about text for main hero description)
+        const pMatches = text.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi);
         for (const m of pMatches) {
-          const val = m[1].trim();
-          if (val && val.length > 10 && !paragraphs.includes(val)) {
+          let val = m[1].replace(/\{[\s\S]*?\}/g, '').replace(/<[^>]+>/g, '').trim();
+          if (val && val.length > 15 && !val.includes('©') && !val.includes('{') && !paragraphs.includes(val)) {
+            if (/about|intro/i.test(fileName) && paragraphs.length > 0) continue;
             paragraphs.push(val);
           }
         }
 
-        // Extract buttons
-        const bMatches = text.matchAll(/<button[^>]*>([^<{]+)<\/button>/gi);
+        // Extract clean buttons (strictly filtering out any JS expressions or leaked syntax)
+        const bMatches = text.matchAll(/<button[\s\S]*?>([\s\S]*?)<\/button>/gi);
         for (const m of bMatches) {
-          const val = m[1].trim();
-          if (val && val.length > 1 && !buttons.includes(val)) {
+          let val = m[1].replace(/\{[\s\S]*?\}/g, '').replace(/<[^>]+>/g, '').replace(/[<>{}]/g, '').trim();
+          // Filter out JS code leaks like setActiveTab, functions, arrows, semicolons, brackets
+          if (
+            val &&
+            val.length >= 2 &&
+            val.length <= 35 &&
+            !val.includes('=>') &&
+            !val.includes('(') &&
+            !val.includes(')') &&
+            !val.includes(';') &&
+            !val.includes('set') &&
+            !val.includes('>') &&
+            !buttons.includes(val)
+          ) {
             buttons.push(val);
           }
         }
@@ -217,19 +249,21 @@ export class AnalyzerService {
         const aMatches = text.matchAll(/<(?:a|Link)[^>]*>([^<{]+)<\/(?:a|Link)>/gi);
         for (const m of aMatches) {
           const val = m[1].trim();
-          if (val && val.length > 1 && val.length < 25 && !navLinks.includes(val)) {
+          if (val && val.length > 1 && val.length < 25 && !val.includes('http') && !navLinks.includes(val)) {
             navLinks.push(val);
           }
         }
 
         // Look for About section
-        if (/about/i.test(path.basename(file))) {
-          const p = text.match(/<p[^>]*>([^<{]+)<\/p>/i);
-          if (p && p[1]) aboutSnippet = p[1].trim();
+        if (/about/i.test(fileName)) {
+          const p = text.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+          if (p && p[1]) {
+            aboutSnippet = p[1].replace(/\{[\s\S]*?\}/g, '').replace(/<[^>]+>/g, '').trim();
+          }
         }
 
         // Look for Features
-        if (/feature/i.test(path.basename(file))) {
+        if (/feature/i.test(fileName)) {
           const h3List = [...text.matchAll(/<h3[^>]*>([^<{]+)<\/h3>/gi)].map(m => m[1].trim());
           const pList = [...text.matchAll(/<p[^>]*>([^<{]+)<\/p>/gi)].map(m => m[1].trim());
           for (let i = 0; i < h3List.length; i++) {
@@ -238,13 +272,22 @@ export class AnalyzerService {
             }
           }
         }
+
+        // Look for input fields / interactive controls
+        const inputMatches = text.matchAll(/<input[^>]+(?:placeholder|name|aria-label)=["']([^"']+)["']/gi);
+        for (const im of inputMatches) {
+          const val = im[1].trim();
+          if (val && !inputs.includes(val) && inputs.length < 6) {
+            inputs.push(val);
+          }
+        }
       } catch {
         // continue
       }
     }
 
-    const mainTitle = headings[0] || rawTitle;
-    const heroDesc = paragraphs[0] || description;
+    const mainTitle = headings.find(h => !/about/i.test(h)) || headings[0] || rawTitle;
+    const heroDesc = paragraphs.find(p => !/hi,|i am|about/i.test(p)) || paragraphs[0] || description;
     const primaryBtn = buttons[0] || 'Get Started';
     const secondaryBtn = buttons[1] || 'Learn More';
     const displayNav = navLinks.slice(0, 4);
@@ -365,6 +408,20 @@ export class AnalyzerService {
       </div>
     </div>
   </main>
+
+  ${inputs.length > 0 ? `
+  <section style="max-width:800px; margin:2.5rem auto; padding:2rem; background:#f8fafc; border-radius:16px; border:1px solid var(--border);">
+    <h3 style="font-size:1.25rem; font-weight:700; margin-bottom:1.25rem; color:#0f172a;">Application Interface</h3>
+    <div style="display:flex; flex-direction:column; gap:1rem;">
+      ${inputs.map(inp => `
+        <div>
+          <label style="display:block; font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:0.35rem;">${inp}</label>
+          <input type="text" placeholder="${inp}" style="width:100%; padding:0.75rem 1rem; border-radius:8px; border:1px solid #cbd5e1; font-size:0.95rem;" />
+        </div>
+      `).join('')}
+      <button class="btn-main" style="align-self:flex-start; margin-top:0.5rem;">${primaryBtn}</button>
+    </div>
+  </section>` : ''}
 
   ${features.length > 0 ? `
   <section class="features-section">
