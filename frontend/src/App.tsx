@@ -6,19 +6,15 @@ import {
   Layout, 
   Award, 
   ArrowRight, 
-  CheckCircle2, 
+  MousePointerClick,
   Sliders,
-  Shield,
-  Layers,
-  MousePointerClick
 } from 'lucide-react';
 import { Header } from './components/Header';
-import { SkillModal } from './components/SkillModal';
 import { ApiSettingsModal, ApiSettings } from './components/ApiSettingsModal';
 import { AuditProgressBar } from './components/AuditProgressBar';
 import { SplitWorkspace } from './components/SplitWorkspace';
 import { ScorecardDrawer } from './components/ScorecardDrawer';
-import { SessionStatus, AuditSkill, AuditResult } from './types';
+import { SessionStatus, AuditResult } from './types';
 
 export const App: React.FC = () => {
   const [repoUrl, setRepoUrl] = useState('');
@@ -31,12 +27,10 @@ export const App: React.FC = () => {
     message: '',
   });
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
-  const [activeSkill, setActiveSkill] = useState<AuditSkill | null>(null);
-  const [isSkillModalOpen, setIsSkillModalOpen] = useState(false);
   const [isScorecardOpen, setIsScorecardOpen] = useState(false);
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
 
-  // Persistent API Settings (Gemini or OpenRouter)
+  // Persistent API Settings (OpenRouter default with best free model)
   const [apiSettings, setApiSettings] = useState<ApiSettings>(() => {
     const saved = localStorage.getItem('designauditor_api_settings');
     if (saved) {
@@ -47,9 +41,9 @@ export const App: React.FC = () => {
       }
     }
     return {
-      provider: 'gemini',
+      provider: 'openrouter',
       apiKey: '',
-      model: 'gemini-3.5-flash-lite',
+      model: 'deepseek/deepseek-r1-0528:free',
     };
   });
 
@@ -57,16 +51,6 @@ export const App: React.FC = () => {
     setApiSettings(settings);
     localStorage.setItem('designauditor_api_settings', JSON.stringify(settings));
   };
-
-  // Fetch active skill on load
-  useEffect(() => {
-    fetch('/api/skill')
-      .then((res) => res.json())
-      .then((data) => setActiveSkill(data))
-      .catch(() => {
-        // Fallback
-      });
-  }, []);
 
   // Handle SSE progress stream
   useEffect(() => {
@@ -142,24 +126,11 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleSaveSkill = async (markdown: string, saveToDisk: boolean) => {
-    const resp = await fetch('/api/skill', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markdown, saveToDisk }),
-    });
-
-    if (resp.ok) {
-      const data = await resp.json();
-      setActiveSkill(data.skill);
-    }
-  };
-
   const isLoading = sessionStatus.status !== 'idle' && sessionStatus.status !== 'completed' && sessionStatus.status !== 'failed';
   const isCompleted = sessionStatus.status === 'completed' && sessionId !== null;
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-slate-100">
+    <div className={`bg-slate-950 flex flex-col font-sans text-slate-100 ${isCompleted ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       {/* Top Header */}
       <Header
         repoUrl={repoUrl}
@@ -168,8 +139,6 @@ export const App: React.FC = () => {
         setPat={setPat}
         onStartAudit={handleStartAudit}
         isLoading={isLoading}
-        activeSkill={activeSkill}
-        onOpenSkillModal={() => setIsSkillModalOpen(true)}
         apiSettings={apiSettings}
         onOpenApiModal={() => setIsApiModalOpen(true)}
       />
@@ -183,12 +152,14 @@ export const App: React.FC = () => {
 
       {/* Main Comparison Workspace (when completed) */}
       {isCompleted && sessionId && (
-        <SplitWorkspace
-          sessionId={sessionId}
-          auditResult={auditResult || undefined}
-          onOpenScorecard={() => setIsScorecardOpen(!isScorecardOpen)}
-          isScorecardOpen={isScorecardOpen}
-        />
+        <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">
+          <SplitWorkspace
+            sessionId={sessionId}
+            auditResult={auditResult || undefined}
+            onOpenScorecard={() => setIsScorecardOpen(!isScorecardOpen)}
+            isScorecardOpen={isScorecardOpen}
+          />
+        </div>
       )}
 
       {/* Idle Landing State (Initial Hero) */}
@@ -196,7 +167,7 @@ export const App: React.FC = () => {
         <main className="flex-1 max-w-6xl mx-auto px-6 py-14 flex flex-col items-center justify-center text-center">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-6">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>AI-Powered UI/UX Audit & Redesign Platform</span>
+            <span>AI-Powered UI/UX Audit &amp; Redesign Platform</span>
           </div>
 
           <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight max-w-4xl leading-[1.15] mb-6">
@@ -204,8 +175,21 @@ export const App: React.FC = () => {
           </h2>
 
           <p className="text-base sm:text-lg text-slate-400 max-w-2xl mb-10 leading-relaxed">
-            Clone your frontend repository, evaluate it with a customizable agent audit harness, and interactively compare the original vs. improved version side-by-side with on-hover UX rationales.
+            Clone your frontend repository, evaluate it with a built-in 100-point UI/UX audit skill, and interactively compare the original vs. improved version side-by-side with on-hover UX rationales.
           </p>
+
+          {/* Skill Info Banner */}
+          <div className="w-full max-w-3xl mb-8 p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/20 flex items-start gap-3 text-left">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center shrink-0 mt-0.5">
+              <Sliders className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-indigo-300 mb-0.5">Built-in Skill: UI Audit — 100-Point Quality Model</p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Audits accessibility, usability, visual hierarchy, consistency, responsiveness, and copy. Produces scored findings, a before/after report, and a modernized HTML/CSS preview with interactive hover annotations on every improvement.
+              </p>
+            </div>
+          </div>
 
           {/* 4 Feature Steps Card Grid */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full text-left mb-12">
@@ -220,14 +204,14 @@ export const App: React.FC = () => {
               {
                 step: 'Step 2',
                 title: 'Run Agent Audit',
-                desc: 'Pluggable harness runs your custom audit skill. Generates 5-dimension scorecard and granular issue list.',
+                desc: '100-point quality model across 6 dimensions. Generates scorecard and granular issue list with AI via OpenRouter.',
                 icon: Search,
                 accent: 'text-cyan-400 border-cyan-500/20 bg-cyan-500/5',
               },
               {
                 step: 'Step 3',
                 title: 'Pure HTML/CSS',
-                desc: 'Synthesizes clean, modernized HTML5/CSS3 preview without breaking dependencies, embedded with audit metadata.',
+                desc: 'Synthesizes clean, modernized HTML5/CSS3 preview embedded with audit metadata for hover annotations.',
                 icon: Layout,
                 accent: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5',
               },
@@ -253,7 +237,7 @@ export const App: React.FC = () => {
             })}
           </div>
 
-          {/* Ready to try box */}
+          {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <button
               onClick={() => {
@@ -266,25 +250,17 @@ export const App: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setIsSkillModalOpen(true)}
+              onClick={() => setIsApiModalOpen(true)}
               className="px-5 py-2.5 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/30 text-xs font-semibold text-indigo-300 flex items-center gap-2 transition"
             >
-              <Sliders className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Configure / Bring Your Audit Skill</span>
+              <Award className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Configure OpenRouter API Key</span>
             </button>
           </div>
         </main>
       )}
 
-      {/* Skill Modal */}
-      <SkillModal
-        isOpen={isSkillModalOpen}
-        onClose={() => setIsSkillModalOpen(false)}
-        activeSkill={activeSkill}
-        onSaveSkill={handleSaveSkill}
-      />
-
-      {/* AI Provider Settings Modal (Gemini or OpenRouter) */}
+      {/* AI Provider Settings Modal */}
       <ApiSettingsModal
         isOpen={isApiModalOpen}
         onClose={() => setIsApiModalOpen(false)}
@@ -303,4 +279,3 @@ export const App: React.FC = () => {
     </div>
   );
 };
-

@@ -140,9 +140,9 @@ export const SplitWorkspace: React.FC<SplitWorkspaceProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-[calc(100vh-65px)] overflow-hidden bg-slate-950">
+    <div className="flex-1 min-h-0 w-full h-full flex flex-col overflow-hidden bg-slate-950">
       {/* Top Controls Toolbar */}
-      <div className="h-12 border-b border-slate-800/90 bg-slate-900/95 backdrop-blur px-4 flex items-center justify-between gap-3 text-xs select-none z-20">
+      <div className="h-12 shrink-0 border-b border-slate-800/90 bg-slate-900/95 backdrop-blur px-4 flex items-center justify-between gap-3 text-xs select-none z-20">
         {/* Left: View Modes */}
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
           <button
@@ -300,7 +300,7 @@ export const SplitWorkspace: React.FC<SplitWorkspaceProps> = ({
             className="h-full bg-slate-950 border-r border-slate-800/80 relative overflow-hidden transition-all duration-75"
           >
             {/* Browser Chrome Header */}
-            <div className="h-9 bg-slate-900 border-b border-slate-800 px-3 flex items-center justify-between text-xs text-slate-400 select-none">
+            <div className="h-9 shrink-0 bg-slate-900 border-b border-slate-800 px-3 flex items-center justify-between text-xs text-slate-400 select-none">
               <div className="flex items-center gap-3">
                 {/* Traffic dots */}
                 <div className="flex items-center gap-1.5">
@@ -338,14 +338,18 @@ export const SplitWorkspace: React.FC<SplitWorkspaceProps> = ({
             </div>
 
             {/* Iframe Viewport Container */}
-            <div className="flex-1 w-full overflow-auto bg-white" style={{ position: 'relative', minHeight: 0 }}>
+            <div className="flex-1 min-h-0 w-full h-full bg-white relative overflow-hidden">
               <div
+                className="w-full h-full"
                 style={{
                   ...getDeviceWidthStyle(),
-                  position: 'absolute',
-                  inset: 0,
-                  transform: zoomLevel !== 100 ? `scale(${zoomLevel / 100})` : undefined,
-                  transformOrigin: 'top left',
+                  height: '100%',
+                  ...(zoomLevel !== 100 ? {
+                    transform: `scale(${zoomLevel / 100})`,
+                    transformOrigin: 'top left',
+                    width: `${Math.round((100 / zoomLevel) * 100)}%`,
+                    height: `${Math.round((100 / zoomLevel) * 100)}%`,
+                  } : {}),
                 }}
               >
                 <iframe
@@ -353,8 +357,7 @@ export const SplitWorkspace: React.FC<SplitWorkspaceProps> = ({
                   key={`orig-${iframeKey}`}
                   src={originalUrl}
                   title="Original Preview"
-                  className="border-none block"
-                  style={{ width: '100%', height: '100%', display: 'block' }}
+                  className="w-full h-full border-none block"
                   sandbox="allow-scripts allow-same-origin allow-forms"
                 />
               </div>
@@ -387,7 +390,7 @@ export const SplitWorkspace: React.FC<SplitWorkspaceProps> = ({
             className="h-full bg-slate-950 relative overflow-hidden transition-all duration-75"
           >
             {/* Browser Chrome Header */}
-            <div className="h-9 bg-indigo-950/40 border-b border-indigo-900/40 px-3 flex items-center justify-between text-xs text-indigo-300 select-none">
+            <div className="h-9 shrink-0 bg-indigo-950/40 border-b border-indigo-900/40 px-3 flex items-center justify-between text-xs text-indigo-300 select-none">
               <div className="flex items-center gap-3">
                 {/* Traffic dots */}
                 <div className="flex items-center gap-1.5">
@@ -426,14 +429,18 @@ export const SplitWorkspace: React.FC<SplitWorkspaceProps> = ({
             </div>
 
             {/* Iframe Viewport Container */}
-            <div className="flex-1 w-full overflow-auto bg-slate-50" style={{ position: 'relative', minHeight: 0 }}>
+            <div className="flex-1 min-h-0 w-full h-full bg-slate-50 relative overflow-hidden">
               <div
+                className="w-full h-full"
                 style={{
                   ...getDeviceWidthStyle(),
-                  position: 'absolute',
-                  inset: 0,
-                  transform: zoomLevel !== 100 ? `scale(${zoomLevel / 100})` : undefined,
-                  transformOrigin: 'top left',
+                  height: '100%',
+                  ...(zoomLevel !== 100 ? {
+                    transform: `scale(${zoomLevel / 100})`,
+                    transformOrigin: 'top left',
+                    width: `${Math.round((100 / zoomLevel) * 100)}%`,
+                    height: `${Math.round((100 / zoomLevel) * 100)}%`,
+                  } : {}),
                 }}
               >
                 <iframe
@@ -441,8 +448,7 @@ export const SplitWorkspace: React.FC<SplitWorkspaceProps> = ({
                   key={`impr-${iframeKey}`}
                   src={improvedUrl}
                   title="Improved Preview"
-                  className="border-none block"
-                  style={{ width: '100%', height: '100%', display: 'block' }}
+                  className="w-full h-full border-none block"
                   sandbox="allow-scripts allow-same-origin allow-forms"
                 />
               </div>

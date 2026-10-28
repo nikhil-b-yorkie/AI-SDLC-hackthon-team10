@@ -9,7 +9,21 @@ export class PreviewService {
   }
 
   async getPreviewHtml(sessionId: string, type: 'original' | 'improved'): Promise<string> {
-    const filePath = path.join(this.baseWorkspaceDir, sessionId, 'preview', `${type}.html`);
+    let filePath = path.join(this.baseWorkspaceDir, sessionId, 'preview', `${type}.html`);
+    let isDistBuild = false;
+
+    // For original preview, check if there is a real compiled dist/index.html in repo!
+    if (type === 'original') {
+      const distIndexPath = path.join(this.baseWorkspaceDir, sessionId, 'repo', 'dist', 'index.html');
+      try {
+        await fs.access(distIndexPath);
+        filePath = distIndexPath;
+        isDistBuild = true;
+      } catch {
+        // Fall back to preview/original.html
+      }
+    }
+
     try {
       let content = await fs.readFile(filePath, 'utf-8');
 
@@ -18,35 +32,32 @@ export class PreviewService {
       // ─────────────────────────────────────────────────────────────────
       const heightFix = `
         <style id="__preview_height_fix__">
-          html, body {
-            height: 100% !important;
-            min-height: 100% !important;
+          html {
+            height: 100%;
+          }
+          body {
+            min-height: 100%;
             overflow-y: auto !important;
           }
         </style>`;
 
-      // Fix 2: Convert relative external stylesheets to absolute repo-served paths
-      // (replace src-relative hrefs with /api/static/:sessionId/...)
-      // For now we inline a "broken link" friendly fallback that doesn't blank the page:
-      // patch <link rel="stylesheet"> that still use relative paths - remove them so
-      // at least the rest of the page structure renders, then show our own normalise.
+      // Fix 2: Normalize elements
       const normalise = `
         <style id="__preview_normalise__">
           *, *::before, *::after { box-sizing: border-box; }
           img { max-width: 100%; }
         </style>`;
 
-      // Inject the base-tag so that relative image / script refs are safe
-      const sessionPreviewBase = `/api/preview/${sessionId}/assets/`;
-      const baseTag = `<base href="${sessionPreviewBase}">`;
+      // Inject base tag for built projects so all assets (JS, CSS, images, videos) resolve correctly
+      const baseTag = isDistBuild ? `<base href="/api/preview/${sessionId}/dist/">` : '';
 
       // Insert fixes right after <head> (or before first content)
       if (content.includes('<head>')) {
-        content = content.replace('<head>', `<head>${heightFix}${normalise}`);
+        content = content.replace('<head>', `<head>${baseTag}${heightFix}${normalise}`);
       } else if (content.includes('<HEAD>')) {
-        content = content.replace('<HEAD>', `<HEAD>${heightFix}${normalise}`);
+        content = content.replace('<HEAD>', `<HEAD>${baseTag}${heightFix}${normalise}`);
       } else {
-        content = heightFix + normalise + content;
+        content = baseTag + heightFix + normalise + content;
       }
 
       // ─────────────────────────────────────────────────────────────────

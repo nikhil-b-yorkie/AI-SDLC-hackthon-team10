@@ -105,11 +105,26 @@ export class AnalyzerService {
     const entryHtmlPath = await this.locateEntryHtml(repoPath, htmlFiles);
 
     let rawHtml = '';
+    let isFrameworkShell = false;
+
     if (entryHtmlPath) {
-      rawHtml = await fs.readFile(entryHtmlPath, 'utf-8');
+      const candidateHtml = await fs.readFile(entryHtmlPath, 'utf-8');
+      // Detect if this is a bare Vite/CRA/framework shell (just a <div id="root"> + module script)
+      // These can't render in a sandboxed iframe — synthesize a real preview instead
+      const isViteShell = /type=["']module["']/.test(candidateHtml) && /<div[^>]+id=["']root["']/.test(candidateHtml);
+      const isCRAShell = /<div[^>]+id=["']root["'][^>]*>\s*<\/div>/.test(candidateHtml) && !/<nav|<header|<main|<section|<article/i.test(candidateHtml);
+      isFrameworkShell = isViteShell || isCRAShell;
+
+      if (isFrameworkShell) {
+        // Synthesize a rich preview from source JSX/TSX/Vue files instead
+        rawHtml = await this.synthesizePreviewFromSource(repoPath, pkgJson, frameworkDetected);
+      } else {
+        rawHtml = candidateHtml;
+      }
     } else {
       // If no raw html exists (e.g. pure React/Next/Vue source code), create a preview representation
       rawHtml = await this.synthesizePreviewFromSource(repoPath, pkgJson, frameworkDetected);
+      isFrameworkShell = true;
     }
 
     // Load HTML into Cheerio
@@ -153,105 +168,226 @@ export class AnalyzerService {
    * Synthesizes an HTML preview when the repo only has JSX/TSX/Vue source files without a built bundle.
    */
   private async synthesizePreviewFromSource(repoPath: string, pkgJson: any, framework: string): Promise<string> {
-    const title = pkgJson?.name || 'Application Preview';
-    const description = pkgJson?.description || 'Extracted from repository source code.';
+    const rawTitle = pkgJson?.name ? pkgJson.name.replace(/[-_]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) : 'Application Preview';
+    const description = pkgJson?.description || 'Interactive web application extracted from repository source code.';
 
-    // Look for App or Home component file
+    // Collect all JSX/TSX/Vue/JS component files
     const jsFiles = await this.findFiles(repoPath, ['.tsx', '.jsx', '.vue', '.js']);
-    const primaryFile = jsFiles.find(f => /App|Home|Index|page/i.test(path.basename(f))) || jsFiles[0];
-    let componentSnippet = '';
-    if (primaryFile) {
+    
+    // Extract headings, buttons, links, and paragraphs across components
+    const headings: string[] = [];
+    const paragraphs: string[] = [];
+    const buttons: string[] = [];
+    const navLinks: string[] = [];
+    const features: { title: string; desc: string }[] = [];
+    let aboutSnippet = '';
+
+    for (const file of jsFiles) {
       try {
-        componentSnippet = (await fs.readFile(primaryFile, 'utf-8')).slice(0, 1000);
+        const text = await fs.readFile(file, 'utf-8');
+        
+        // Extract headings (h1, h2, h3)
+        const hMatches = text.matchAll(/<h[1-3][^>]*>([^<{]+)<\/h[1-3]>/gi);
+        for (const m of hMatches) {
+          const val = m[1].trim();
+          if (val && val.length > 2 && !headings.includes(val)) {
+            headings.push(val);
+          }
+        }
+
+        // Extract paragraphs
+        const pMatches = text.matchAll(/<p[^>]*>([^<{]+)<\/p>/gi);
+        for (const m of pMatches) {
+          const val = m[1].trim();
+          if (val && val.length > 10 && !paragraphs.includes(val)) {
+            paragraphs.push(val);
+          }
+        }
+
+        // Extract buttons
+        const bMatches = text.matchAll(/<button[^>]*>([^<{]+)<\/button>/gi);
+        for (const m of bMatches) {
+          const val = m[1].trim();
+          if (val && val.length > 1 && !buttons.includes(val)) {
+            buttons.push(val);
+          }
+        }
+
+        // Extract nav links
+        const aMatches = text.matchAll(/<(?:a|Link)[^>]*>([^<{]+)<\/(?:a|Link)>/gi);
+        for (const m of aMatches) {
+          const val = m[1].trim();
+          if (val && val.length > 1 && val.length < 25 && !navLinks.includes(val)) {
+            navLinks.push(val);
+          }
+        }
+
+        // Look for About section
+        if (/about/i.test(path.basename(file))) {
+          const p = text.match(/<p[^>]*>([^<{]+)<\/p>/i);
+          if (p && p[1]) aboutSnippet = p[1].trim();
+        }
+
+        // Look for Features
+        if (/feature/i.test(path.basename(file))) {
+          const h3List = [...text.matchAll(/<h3[^>]*>([^<{]+)<\/h3>/gi)].map(m => m[1].trim());
+          const pList = [...text.matchAll(/<p[^>]*>([^<{]+)<\/p>/gi)].map(m => m[1].trim());
+          for (let i = 0; i < h3List.length; i++) {
+            if (h3List[i] && pList[i]) {
+              features.push({ title: h3List[i], desc: pList[i] });
+            }
+          }
+        }
       } catch {
         // continue
       }
     }
+
+    const mainTitle = headings[0] || rawTitle;
+    const heroDesc = paragraphs[0] || description;
+    const primaryBtn = buttons[0] || 'Get Started';
+    const secondaryBtn = buttons[1] || 'Learn More';
+    const displayNav = navLinks.slice(0, 4);
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
+  <title>${mainTitle}</title>
   <style>
     :root {
-      --bg-color: #f8fafc;
-      --text-color: #0f172a;
-      --primary: #2563eb;
-      --card-bg: #ffffff;
+      --bg-page: #ffffff;
+      --bg-card: #f8fafc;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --brand: #2563eb;
+      --border: #e2e8f0;
     }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg-color);
-      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-page);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 0;
       margin: 0;
-      padding: 2rem;
-      line-height: 1.5;
     }
-    .header {
-      background: var(--card-bg);
-      border-radius: 12px;
-      padding: 2rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      margin-bottom: 2rem;
+    header {
+      width: 100%;
+      padding: 1.25rem 2rem;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 40;
     }
+    .brand { font-size: 1.25rem; font-weight: 800; color: #0f172a; }
+    .nav-list { display: flex; gap: 1.5rem; list-style: none; font-weight: 600; font-size: 0.95rem; }
+    .nav-list a { color: #475569; text-decoration: none; }
+    .nav-list a:hover { color: #0f172a; }
+    .hero {
+      padding: 4rem 2rem;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+    .hero-container { max-width: 800px; margin: 0 auto; }
     .badge {
       display: inline-block;
-      padding: 0.25rem 0.75rem;
-      border-radius: 9999px;
-      font-size: 0.875rem;
-      font-weight: 600;
+      padding: 0.35rem 0.85rem;
       background: #e0e7ff;
       color: #3730a3;
-      margin-bottom: 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
     }
-    h1 {
-      margin: 0 0 0.5rem 0;
-      font-size: 1.875rem;
-    }
-    p {
-      color: #64748b;
-      margin: 0;
-    }
-    .main-content {
-      background: var(--card-bg);
-      padding: 2rem;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    pre {
-      background: #1e293b;
-      color: #f1f5f9;
-      padding: 1rem;
-      border-radius: 8px;
-      overflow-x: auto;
-      font-size: 0.85rem;
-    }
-    .btn {
-      background: var(--primary);
-      color: white;
-      padding: 0.6rem 1.25rem;
+    h1 { font-size: 2.75rem; font-weight: 800; margin-bottom: 1rem; line-height: 1.2; color: #0f172a; }
+    p.subtitle { font-size: 1.2rem; color: #475569; margin-bottom: 2rem; }
+    .cta-group { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 2.5rem; }
+    .btn-main {
+      padding: 0.85rem 1.75rem;
+      background: #0f172a;
+      color: #ffffff;
+      border-radius: 10px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-block;
       border: none;
-      border-radius: 6px;
-      font-weight: 500;
       cursor: pointer;
-      margin-top: 1rem;
     }
+    .btn-sub {
+      padding: 0.85rem 1.75rem;
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-block;
+      cursor: pointer;
+    }
+    .features-section { max-width: 1100px; margin: 3rem auto; padding: 0 1.5rem; }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+    .feature-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.75rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    }
+    .feature-card h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem; color: #1e293b; }
+    .feature-card p { font-size: 0.95rem; color: #64748b; }
+    .about-section { max-width: 800px; margin: 3rem auto; padding: 2rem; background: #f8fafc; border-radius: 16px; border: 1px solid var(--border); }
+    footer { padding: 3rem 2rem; background: #ffffff; border-top: 1px solid var(--border); text-align: center; color: #94a3b8; font-size: 0.9rem; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <span class="badge">${framework}</span>
-    <h1>${title}</h1>
-    <p>${description}</p>
-  </div>
-  <div class="main-content">
-    <h2>Primary Screen View</h2>
-    <p>Component Structure extracted from source files:</p>
-    ${componentSnippet ? `<pre><code>${componentSnippet.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>` : '<p>No preview source found.</p>'}
-    <button class="btn">Explore Application</button>
-  </div>
+  <header>
+    <div class="brand">${rawTitle}</div>
+    <ul class="nav-list">
+      ${displayNav.length > 0 ? displayNav.map(n => `<li><a href="#">${n}</a></li>`).join('') : `<li><a href="#">Home</a></li><li><a href="#">Features</a></li><li><a href="#">Docs</a></li>`}
+    </ul>
+  </header>
+
+  <main class="hero">
+    <div class="hero-container">
+      <span class="badge">${framework}</span>
+      <h1>${mainTitle}</h1>
+      <p class="subtitle">${heroDesc}</p>
+      <div class="cta-group">
+        <button class="btn-main">${primaryBtn}</button>
+        <button class="btn-sub">${secondaryBtn}</button>
+      </div>
+    </div>
+  </main>
+
+  ${features.length > 0 ? `
+  <section class="features-section">
+    <h2 style="font-size:2rem; font-weight:800; margin-bottom:1.5rem; text-align:center;">Key Features</h2>
+    <div class="features-grid">
+      ${features.map(f => `
+        <div class="feature-card">
+          <h3>${f.title}</h3>
+          <p>${f.desc}</p>
+        </div>
+      `).join('')}
+    </div>
+  </section>` : ''}
+
+  ${aboutSnippet ? `
+  <section class="about-section">
+    <h3 style="font-size:1.4rem; font-weight:700; margin-bottom:0.75rem;">About</h3>
+    <p style="color:#475569; font-size:1.05rem;">${aboutSnippet}</p>
+  </section>` : ''}
+
+  <footer>
+    <p>&copy; ${new Date().getFullYear()} ${rawTitle}. All rights reserved.</p>
+  </footer>
 </body>
 </html>`;
   }

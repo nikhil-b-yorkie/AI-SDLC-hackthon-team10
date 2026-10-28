@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Key, GitBranch, Play, Sliders, ExternalLink, ShieldCheck, Cpu } from 'lucide-react';
-import { AuditSkill } from '../types';
+import { Sparkles, Key, Play, ShieldCheck, Cpu } from 'lucide-react';
 import { ApiSettings } from './ApiSettingsModal';
 
 interface HeaderProps {
@@ -10,8 +9,6 @@ interface HeaderProps {
   setPat: (pat: string) => void;
   onStartAudit: () => void;
   isLoading: boolean;
-  activeSkill: AuditSkill | null;
-  onOpenSkillModal: () => void;
   apiSettings: ApiSettings;
   onOpenApiModal: () => void;
 }
@@ -23,8 +20,6 @@ export const Header: React.FC<HeaderProps> = ({
   setPat,
   onStartAudit,
   isLoading,
-  activeSkill,
-  onOpenSkillModal,
   apiSettings,
   onOpenApiModal,
 }) => {
@@ -58,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
                 Side-by-Side
               </span>
             </div>
-            <p className="text-xs text-slate-400">Clone · Audit Agent Harness · Pure HTML/CSS Redesign</p>
+            <p className="text-xs text-slate-400">Clone · 100-Point UI Audit · Pure HTML/CSS Redesign</p>
           </div>
         </div>
 
@@ -126,8 +121,16 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </form>
 
-        {/* Right Tools (API Provider, Skill Manager & Info) */}
+        {/* Right Tools — API Provider only */}
         <div className="flex items-center gap-2 self-end lg:self-auto">
+          {/* Active skill badge (informational, no button) */}
+          <div className="hidden lg:flex items-center gap-1.5 px-3 py-2 bg-slate-950/60 border border-slate-800 text-slate-500 text-[11px] rounded-lg select-none">
+            <Sparkles className="w-3 h-3 text-emerald-400" />
+            <span className="text-emerald-400 font-semibold">UI Audit</span>
+            <span>100-pt skill active</span>
+          </div>
+
+          {/* AI Provider Button */}
           <button
             type="button"
             onClick={onOpenApiModal}
@@ -141,16 +144,6 @@ export const Header: React.FC<HeaderProps> = ({
             )}
             <span className="capitalize">{apiSettings.provider}</span>
             <span className={`w-2 h-2 rounded-full ${apiSettings.apiKey ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenSkillModal}
-            className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-300 text-xs font-medium rounded-lg flex items-center gap-2 transition"
-          >
-            <Sliders className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Audit Skill</span>
-            <span className={`w-2 h-2 rounded-full ${activeSkill?.source === 'custom' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
           </button>
         </div>
       </div>

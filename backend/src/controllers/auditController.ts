@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import { GitService } from '../services/gitService.js';
 import { AnalyzerService } from '../services/analyzerService.js';
 import { PreviewService } from '../services/previewService.js';
@@ -94,6 +95,27 @@ export class AuditController {
             });
           }
         );
+
+        // Step 1.5: Build Project (if package.json exists) for live full-fidelity preview
+        try {
+          const pkgPath = path.join(repoPath, 'package.json');
+          const hasPkg = await fs.access(pkgPath).then(() => true).catch(() => false);
+          if (hasPkg) {
+            this.notifySse(sessionId, {
+              sessionId,
+              status: 'analyzing',
+              progress: 32,
+              message: 'Compiling cloned application bundle for live rendering...',
+            });
+            const { exec } = await import('node:child_process');
+            const { promisify } = await import('node:util');
+            const execAsync = promisify(exec);
+            await execAsync('npm install --prefer-offline --no-audit', { cwd: repoPath, timeout: 60000 });
+            await execAsync('npx vite build --base=./ || npm run build', { cwd: repoPath, timeout: 60000 });
+          }
+        } catch {
+          // If building fails (e.g. non-JS or compile error), seamlessly fallback to synthesized preview
+        }
 
         // Step 2: Extract project DOM & CSS
         this.notifySse(sessionId, {

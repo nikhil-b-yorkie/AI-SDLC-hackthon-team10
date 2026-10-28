@@ -39,7 +39,7 @@ export class AgentRunner {
 
     if (provider === 'openrouter' && openRouterKey) {
       try {
-        const model = apiConfig?.model || process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3.5-lightning:free';
+        const model = apiConfig?.model || process.env.OPENROUTER_MODEL || 'deepseek/deepseek-r1-0528:free';
         onProgress?.(`Invoking OpenRouter AI Agent (${model}) with custom audit skill...`);
         return await this.runOpenRouterAudit(sessionId, repoUrl, extracted, skill, openRouterKey, model, onProgress);
       } catch (err: any) {

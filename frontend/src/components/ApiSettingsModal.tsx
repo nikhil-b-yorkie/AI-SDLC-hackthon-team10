@@ -29,10 +29,10 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
 
   const handleProviderChange = (p: 'gemini' | 'openrouter') => {
     setProvider(p);
-    if (p === 'openrouter' && (!model || model.includes('gemini-3'))) {
-      setModel('nvidia/nemotron-3.5-lightning:free');
-    } else if (p === 'gemini' && (!model || model.includes(':free') || model.includes('claude') || model.includes('nvidia'))) {
-      setModel('gemini-3.5-flash-lite');
+    if (p === 'openrouter' && (!model || model.includes('gemini-3') || model.includes('gemini-'))) {
+      setModel('deepseek/deepseek-r1-0528:free');
+    } else if (p === 'gemini' && (!model || model.includes(':free') || model.includes('claude') || model.includes('nvidia') || model.includes('deepseek') || model.includes('/'))) {
+      setModel('gemini-2.0-flash');
     }
   };
 
@@ -104,7 +104,7 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
                   <span className="font-bold text-xs">OpenRouter</span>
                   <Cpu className="w-3.5 h-3.5 text-indigo-400" />
                 </div>
-                <span className="text-[11px] text-slate-400">Claude 3.5, GPT-4o, Llama 3</span>
+                <span className="text-[11px] text-slate-400">deepseek-r1, gemma-3, llama, etc.</span>
               </button>
             </div>
           </div>
@@ -134,23 +134,28 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
               type="text"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder={provider === 'openrouter' ? 'anthropic/claude-3.5-sonnet' : 'gemini-3.5-flash-lite'}
+              placeholder={provider === 'openrouter' ? 'deepseek/deepseek-r1-0528:free' : 'gemini-2.0-flash'}
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 focus:border-indigo-500 text-xs text-slate-100 font-mono rounded-xl outline-none"
             />
             {provider === 'openrouter' ? (
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-[10px] text-slate-500">Free models:</span>
+                <span className="text-[10px] text-slate-500">Best free models:</span>
                 {[
-                  'nvidia/nemotron-3.5-lightning:free',
-                  'google/gemma-4-31b-it:free',
+                  'deepseek/deepseek-r1-0528:free',
+                  'google/gemma-3-27b-it:free',
                   'nvidia/nemotron-3-ultra-550b-a55b:free',
-                  'thinkingmachines/inkling:free',
+                  'meta-llama/llama-3.3-70b-instruct:free',
+                  'microsoft/mai-ds-r1:free',
                 ].map((m) => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => setModel(m)}
-                    className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition"
+                    className={`text-[10px] px-2 py-0.5 rounded transition ${
+                      model === m
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    }`}
                   >
                     {m.split('/')[1] || m}
                   </button>
@@ -159,12 +164,16 @@ export const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({
             ) : (
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                 <span className="text-[10px] text-slate-500">Popular:</span>
-                {['gemini-3.5-flash-lite', 'gemini-3.8-flash'].map((m) => (
+                {['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'].map((m) => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => setModel(m)}
-                    className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded transition"
+                    className={`text-[10px] px-2 py-0.5 rounded transition ${
+                      model === m
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                    }`}
                   >
                     {m}
                   </button>
